@@ -1,7 +1,11 @@
 import numpy as np
+import random
 
 def sigmoid(z):
     return 1.0/(1.0 + np.exp(-z))
+
+def sigmoid_prime(z):
+    return sigmoid(z) * (1 - sigmoid(z))
 
 class Network(object):
 
@@ -14,8 +18,7 @@ class Network(object):
 
     def feedForward(self, a):
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w,a) + b)
-
+            a = sigmoid(np.dot(w, a) + b)
         return a
 
     def SGD(self, training_data, epochs, mini_batch_size, eta, test_data=None):
@@ -23,8 +26,8 @@ class Network(object):
         if test_data: n_test = len(test_data)
         n = len(training_data)
         for j in xrange(epochs):
-            np.random.shuffle(training_data)
-            mini_batches = [training_data[k:k + mini_batch_size]] for k in xrange(0,n,mini_batch_size)]
+            random.shuffle(training_data)
+            mini_batches = [training_data[k:k + mini_batch_size] for k in xrange(0,n,mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(mini_batch, eta)
             if test_data:
@@ -38,7 +41,7 @@ class Network(object):
         nabla_w = [np.zeros(w.shape) for w in self.weights]
 
         for x, y in mini_batch:
-            delta_nabla_b delta_nabla_w = self.backprop(x,y)
+            delta_nabla_b, delta_nabla_w = self.backprop(x,y)
             nabla_b = [nb + dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw + dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
         self.weights = [w - (eta/len(mini_batch)) * nw for w, nw in zip(self.weights, nabla_w)]
@@ -57,14 +60,22 @@ class Network(object):
             activation = sigmoid(z)
             activations.append(activation)
 
-        delta = self.cost_derivative(actions[-1], y) * sigmoid_prime(zs[-1])
+        delta = self.cost_derivative(activations[-1], y) * sigmoid_prime(zs[-1])
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
 
-        for l in xrange(2, self.num_layers):
-            z = zs[-1]
+        for lay in xrange(2, self.num_layers):
+            z = zs[-lay]
             sp = sigmoid_prime(z)
-            delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
-            nabla_b[-l] = delta
-            delta_nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
+            delta = np.dot(self.weights[-lay+1].transpose(), delta) * sp
+            nabla_b[-lay] = delta
+            nabla_w[-lay] = np.dot(delta, activations[-lay-1].transpose())
         return (nabla_b, nabla_w)
+
+    def evaluate(self, test_data):
+        test_results = [(np.argmax(self.feedForward(x)), y) for (x, y) in test_data]
+        return sum(int(x == y) for (x, y) in test_results)
+
+    def cost_derivative(self, output_activations, y):
+        return (output_activations - y)
+
